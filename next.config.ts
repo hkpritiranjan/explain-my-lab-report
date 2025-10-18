@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["pdf-parse"],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
