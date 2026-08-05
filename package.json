@@ -4,32 +4,29 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "next": "15.5.4",
+    "next": "^15.5.22",
     "openai": "^6.2.0",
     "pdf-parse": "^2.2.6",
-    "pdf-text-extract": "^1.5.0",
-    "pdf2pic": "^3.2.0",
-    "pdfjs-dist": "^5.4.296",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "tesseract.js": "^6.0.1",
-    "tesseract.js-node": "^0.1.0"
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^17.2.3",
     "eslint": "^9",
-    "eslint-config-next": "15.5.4",
+    "eslint-config-next": "^15.5.22",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
