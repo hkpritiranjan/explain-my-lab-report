@@ -1,9 +1,12 @@
 "use client";
+
 import React, { useState } from "react";
 import Tesseract from "tesseract.js";
+import type { ExplanationMode } from "@/types/lab-report";
 
 interface Props {
-  onSendText: (text: string) => Promise<void>;
+  onExplain: (text: string, mode: ExplanationMode) => Promise<void>;
+  mode: ExplanationMode;
   busy: boolean;
 }
 
@@ -12,7 +15,9 @@ type FileState =
   | { status: "processing"; message: string }
   | { status: "error"; message: string };
 
-export default function FileUploader({ onSendText, busy }: Props) {
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export function FileUploader({ onExplain, mode, busy }: Props) {
   const [manual, setManual] = useState("");
   const [fileState, setFileState] = useState<FileState>({ status: "idle" });
 
@@ -22,18 +27,17 @@ export default function FileUploader({ onSendText, busy }: Props) {
     e.preventDefault();
     const text = manual.trim();
     if (text.length < 10) return;
-    await onSendText(text);
+    await onExplain(text, mode);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    // Reset input so the same file can be re-selected after fixing an issue
     e.target.value = "";
     if (!file) return;
 
     setFileState({ status: "idle" });
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_FILE_BYTES) {
       setFileState({ status: "error", message: "File is too large. Maximum size is 10 MB." });
       return;
     }
@@ -44,13 +48,13 @@ export default function FileUploader({ onSendText, busy }: Props) {
         const fd = new FormData();
         fd.append("file", file);
         const res = await fetch("/api/extract", { method: "POST", body: fd });
-        const json = await res.json();
+        const json = await res.json() as { text?: string; error?: string };
         if (!res.ok) {
           setFileState({ status: "error", message: json.error ?? "Failed to read PDF." });
           return;
         }
         setFileState({ status: "idle" });
-        await onSendText(json.text as string);
+        await onExplain(json.text!, mode);
       } catch {
         setFileState({ status: "error", message: "Could not process PDF. Please try again." });
       }
@@ -77,7 +81,7 @@ export default function FileUploader({ onSendText, busy }: Props) {
           return;
         }
         setFileState({ status: "idle" });
-        await onSendText(text);
+        await onExplain(text, mode);
       } catch {
         setFileState({ status: "error", message: "OCR failed. Please try a different image." });
       }
@@ -153,8 +157,7 @@ export default function FileUploader({ onSendText, busy }: Props) {
       </div>
 
       <p className="text-xs text-gray-400 mt-4">
-        PDFs are parsed on the server. Images are processed locally in your browser via OCR.
-        Maximum file size: 10 MB.
+        PDFs parsed on the server · Images processed locally via OCR · Max 10 MB
       </p>
     </div>
   );

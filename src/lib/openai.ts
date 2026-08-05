@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-function getOpenAIClient(): OpenAI {
+function createClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -10,10 +10,10 @@ function getOpenAIClient(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
-// Lazily initialized so the build doesn't fail without an env file.
+// Lazily initialized so `npm run build` works without a real .env.local
 let _client: OpenAI | null = null;
 
 export function getClient(): OpenAI {
-  if (!_client) _client = getOpenAIClient();
+  if (!_client) _client = createClient();
   return _client;
 }
