@@ -1,15 +1,17 @@
 "use client";
-import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import React from "react";
+import { CheckCircleIcon, ExclamationTriangleIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 
 interface Props {
   explanation: string | null;
   loading: boolean;
+  error: string | null;
 }
 
 interface LabTest {
   test_name: string;
   reported_value: string;
+  reference_range?: string | null;
   is_likely_normal: "yes" | "no" | "unknown";
   simple_explanation: string;
   recommended_next_step: string;
@@ -17,129 +19,148 @@ interface LabTest {
 
 interface LabReport {
   summary: string;
+  disclaimer: string;
   tests: LabTest[];
 }
 
-export default function ReportOutput({ explanation, loading }: Props) {
-    let parsed: LabReport | null = null;
-    let disclaimer: string | null = null;
-
-    try {
-      if (explanation) {
-        let cleaned = explanation.trim();
-
-        // Remove leading BOM if present
-        if (cleaned.charCodeAt(0) === 0xFEFF) cleaned = cleaned.slice(1);
-
-        // Handle triple-backtick code block (common from GPT)
-        if (cleaned.startsWith('````')){
-          const endIdx = cleaned.indexOf('```', 7);
-          const jsonBlock = cleaned.substring(7, endIdx).trim();
-          parsed = JSON.parse(jsonBlock);
-
-          // Extract disclaimer after code block, possibly with markdown
-          const rest = cleaned.substring(endIdx + 3).replace(/^\n+/, '');
-          if (rest) disclaimer = rest.replace(/^\*\*Disclaimer:\*\*\s*/i, "");
-        } else if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-          // Pure JSON (no code block)
-          parsed = JSON.parse(cleaned);
-        }
-      }
-    } catch {
-      parsed = null;
+function parseExplanation(raw: string): LabReport | null {
+  try {
+    const parsed: unknown = JSON.parse(raw.trim());
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      "summary" in parsed &&
+      "tests" in parsed &&
+      Array.isArray((parsed as LabReport).tests)
+    ) {
+      return parsed as LabReport;
     }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
+function StatusBadge({ status }: { status: "yes" | "no" | "unknown" }) {
+  if (status === "yes") {
+    return (
+      <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 border border-green-200 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+        <CheckCircleIcon className="w-3.5 h-3.5" aria-hidden="true" />
+        Normal
+      </span>
+    );
+  }
+  if (status === "no") {
+    return (
+      <span className="inline-flex items-center gap-1 text-red-700 bg-red-50 border border-red-200 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+        <ExclamationTriangleIcon className="w-3.5 h-3.5" aria-hidden="true" />
+        Abnormal
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+      <QuestionMarkCircleIcon className="w-3.5 h-3.5" aria-hidden="true" />
+      Unknown
+    </span>
+  );
+}
 
-  const tests = Array.isArray(parsed?.tests) ? parsed.tests : [];
+function TestCard({ test }: { test: LabTest }) {
+  const borderColor =
+    test.is_likely_normal === "no"
+      ? "border-l-red-400"
+      : test.is_likely_normal === "yes"
+      ? "border-l-green-400"
+      : "border-l-yellow-400";
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 flex-1">
+    <div className={`border border-gray-200 border-l-4 ${borderColor} rounded-lg p-4 bg-white flex flex-col gap-2`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-base font-semibold text-gray-800">{test.test_name}</span>
+        <StatusBadge status={test.is_likely_normal} />
+      </div>
+
+      <div className="flex flex-wrap gap-4 text-sm">
+        <span className="font-mono text-sky-800 font-medium">
+          Value: {test.reported_value || "—"}
+        </span>
+        {test.reference_range && (
+          <span className="text-gray-500">
+            Reference: {test.reference_range}
+          </span>
+        )}
+      </div>
+
+      <p className="text-gray-700 text-sm leading-relaxed">{test.simple_explanation}</p>
+
+      <p className="text-xs text-gray-500 italic border-t border-gray-100 pt-2">
+        {test.recommended_next_step}
+      </p>
+    </div>
+  );
+}
+
+export default function ReportOutput({ explanation, loading, error }: Props) {
+  const parsed = explanation ? parseExplanation(explanation) : null;
+  const tests = parsed?.tests ?? [];
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Explained Report</h2>
 
       {loading && (
-        <div className="text-sky-600 font-medium animate-pulse">
-          Analyzing your report…
+        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sky-600 font-medium">
+          <span className="animate-pulse">Analyzing your report…</span>
         </div>
       )}
 
-      {!loading && !explanation && (
-        <div className="text-gray-400 italic">
-          No explanation yet. Submit a report to begin.
+      {error && !loading && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded-md p-4 text-sm">
+          <strong>Error: </strong>{error}
         </div>
       )}
 
-      {/* Render Structured Output */}
+      {!loading && !error && !explanation && (
+        <p className="text-gray-400 italic">
+          No explanation yet. Submit a report above to get started.
+        </p>
+      )}
+
       {!loading && parsed && (
-        <div className="space-y-6">
-          {/* Summary */}
+        <div className="space-y-5" aria-live="polite" aria-label="Lab report explanation">
           <div className="bg-sky-50 p-4 rounded-lg border border-sky-100">
-            <span className="font-medium text-gray-700 block mb-2">Summary</span>
-            <p className="text-gray-900 text-base leading-relaxed">{parsed.summary}</p>
+            <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide mb-1">Summary</p>
+            <p className="text-gray-900 text-sm leading-relaxed">{parsed.summary}</p>
           </div>
 
-          {/* Tests */}
-          {tests.length > 0 && (
+          {tests.length > 0 ? (
             <div>
-              <span className="font-medium text-gray-700 block mb-2">Test Results</span>
-              <div className="grid gap-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Test Results ({tests.length})
+              </p>
+              <div className="flex flex-col gap-3">
                 {tests.map((test, idx) => (
-                  <div
-                    key={idx}
-                    className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-gray-50"
-                  >
-                    <div>
-                      <div className="text-lg text-gray-800 font-semibold mb-1">{test.test_name}</div>
-                      <div className="text-gray-700 text-sm mb-2">{test.simple_explanation}</div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                        <span className="font-mono text-base text-sky-800">
-                          Value: {test.reported_value || "—"}
-                        </span>
-                        {(test.is_likely_normal === "yes") && (
-                          <span className="flex items-center gap-1 text-green-600">
-                            <CheckCircleIcon className="w-5 h-5"/>
-                            Normal
-                          </span>
-                        )}
-                        {(test.is_likely_normal === "no") && (
-                          <span className="flex items-center gap-1 text-red-500">
-                            <ExclamationTriangleIcon className="w-5 h-5"/>
-                            Abnormal
-                          </span>
-                        )}
-                        {(test.is_likely_normal === "unknown") && (
-                          <span className="flex items-center gap-1 text-yellow-500">
-                            <ExclamationTriangleIcon className="w-5 h-5"/>
-                            Unknown
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 italic">{test.recommended_next_step}</div>
-                    </div>
-                  </div>
+                  <TestCard key={test.test_name || idx} test={test} />
                 ))}
               </div>
             </div>
+          ) : (
+            <p className="text-sm text-gray-400 italic">
+              No individual test values were identified in the report.
+            </p>
           )}
 
-          {/* If no tests found */}
-          {tests.length === 0 && (
-            <div className="text-sm text-gray-400 italic">
-              No specific tests were identified in the report.
-            </div>
-          )}
-
-          {/* Disclaimer if present */}
-          {disclaimer && (
-            <div className="bg-gray-50 p-3 rounded border border-gray-200 text-xs text-gray-600">
-              {disclaimer}
+          {parsed.disclaimer && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-800">
+              <strong>Disclaimer: </strong>{parsed.disclaimer}
             </div>
           )}
         </div>
       )}
 
-      {/* Fallback for invalid JSON or unexpected responses */}
-      {!loading && explanation && !parsed && (
-        <pre className="whitespace-pre-wrap text-gray-600 text-sm bg-gray-50 p-4 rounded-md border">
+      {!loading && !error && explanation && !parsed && (
+        <pre className="whitespace-pre-wrap text-gray-600 text-sm bg-gray-50 p-4 rounded-md border overflow-x-auto">
           {explanation}
         </pre>
       )}
