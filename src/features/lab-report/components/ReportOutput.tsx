@@ -5,8 +5,9 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   QuestionMarkCircleIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import type { ReportState, LabTest, NormalStatus } from "@/types/lab-report";
+import type { ReportState, LabTest, NormalStatus, Confidence } from "@/types/lab-report";
 
 interface Props {
   state: ReportState;
@@ -37,6 +38,28 @@ function StatusBadge({ status }: { status: NormalStatus }) {
   );
 }
 
+function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
+  if (confidence === "high") return null;
+  if (confidence === "medium") {
+    return (
+      <span
+        title="The AI has moderate confidence in this assessment"
+        className="inline-flex items-center text-xs text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full whitespace-nowrap"
+      >
+        Some uncertainty
+      </span>
+    );
+  }
+  return (
+    <span
+      title="The AI has low confidence in this assessment — discuss with your doctor"
+      className="inline-flex items-center text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full whitespace-nowrap"
+    >
+      Uncertain
+    </span>
+  );
+}
+
 function TestCard({ test }: { test: LabTest }) {
   const borderColor =
     test.is_likely_normal === "no"
@@ -46,10 +69,15 @@ function TestCard({ test }: { test: LabTest }) {
       : "border-l-yellow-400";
 
   return (
-    <div className={`border border-gray-200 border-l-4 ${borderColor} rounded-lg p-4 bg-white flex flex-col gap-2`}>
-      <div className="flex items-start justify-between gap-3">
+    <div
+      className={`border border-gray-200 border-l-4 ${borderColor} rounded-lg p-4 bg-white flex flex-col gap-2`}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <span className="text-base font-semibold text-gray-800">{test.test_name}</span>
-        <StatusBadge status={test.is_likely_normal} />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <StatusBadge status={test.is_likely_normal} />
+          <ConfidenceBadge confidence={test.confidence} />
+        </div>
       </div>
       <div className="flex flex-wrap gap-4 text-sm">
         <span className="font-mono text-sky-800 font-medium">
@@ -67,15 +95,37 @@ function TestCard({ test }: { test: LabTest }) {
   );
 }
 
+function StreamingProgress({ bytesReceived }: { bytesReceived: number }) {
+  // Rough estimate: a typical response is ~2KB; cap the visual fill at 95% so it never looks done early
+  const fillPct = Math.min(95, (bytesReceived / 2000) * 100);
+
+  return (
+    <div role="status" aria-live="polite" className="space-y-3 py-2">
+      <p className="text-sky-600 font-medium animate-pulse">Analyzing your report…</p>
+      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+        <div
+          className="bg-sky-500 h-1.5 rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${fillPct}%` }}
+        />
+      </div>
+      <p className="text-xs text-gray-400">Received {bytesReceived} characters…</p>
+    </div>
+  );
+}
+
 export function ReportOutput({ state }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Explained Report</h2>
 
       {state.status === "loading" && (
-        <div role="status" aria-live="polite" className="text-sky-600 font-medium animate-pulse">
-          Analyzing your report…
+        <div role="status" aria-live="polite" className="text-sky-600 font-medium animate-pulse py-2">
+          Connecting…
         </div>
+      )}
+
+      {state.status === "streaming" && (
+        <StreamingProgress bytesReceived={state.bytesReceived} />
       )}
 
       {state.status === "error" && (
@@ -92,6 +142,7 @@ export function ReportOutput({ state }: Props) {
 
       {state.status === "success" && (
         <div className="space-y-5" aria-live="polite" aria-label="Lab report explanation">
+          {/* Summary */}
           <div className="bg-sky-50 p-4 rounded-lg border border-sky-100">
             <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide mb-1">
               Summary
@@ -99,6 +150,7 @@ export function ReportOutput({ state }: Props) {
             <p className="text-gray-900 text-sm leading-relaxed">{state.data.summary}</p>
           </div>
 
+          {/* Test results */}
           {state.data.tests.length > 0 ? (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -116,6 +168,27 @@ export function ReportOutput({ state }: Props) {
             </p>
           )}
 
+          {/* Follow-up questions */}
+          {state.data.follow_up_questions.length > 0 && (
+            <div className="bg-violet-50 border border-violet-100 rounded-lg p-4">
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                Questions to ask your doctor
+              </p>
+              <ol className="space-y-2">
+                {state.data.follow_up_questions.map((q, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-gray-700">
+                    <span className="text-violet-500 font-semibold shrink-0 tabular-nums">
+                      {i + 1}.
+                    </span>
+                    <span>{q}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* Disclaimer */}
           {state.data.disclaimer && (
             <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-800">
               <strong>Disclaimer: </strong>{state.data.disclaimer}

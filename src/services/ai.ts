@@ -1,45 +1,88 @@
 import { getClient } from "@/lib/openai";
-import { LabReportSchema } from "@/lib/schemas";
-import type { LabReport, ExplanationMode } from "@/types/lab-report";
+import type { ExplanationMode } from "@/types/lab-report";
 
-export const PROMPT_VERSION = "1.0.0";
+export const PROMPT_VERSION = "2.0.0";
 
 const MAX_INPUT_CHARS = 60_000;
 
-const SYSTEM_PROMPT = `You are a careful, clear medical assistant that helps patients understand their laboratory results.
+const SYSTEM_PROMPT = `You are a careful, clear medical assistant helping patients understand their laboratory results.
 Explain findings in plain, non-technical language a non-medical adult can understand.
 Never make definitive diagnoses. Always recommend consulting a doctor for medical decisions.
-You must respond with valid JSON only — no markdown, no code blocks, no extra text outside the JSON object.`;
+Be accurate, empathetic, and concise.`;
 
 function toneGuide(mode: ExplanationMode): string {
   switch (mode) {
     case "eli5":
-      return "Use extremely simple language — explain as if to a curious 12-year-old with no medical background.";
+      return "Explain everything as if to a curious 12-year-old with no medical knowledge. Use simple words, fun analogies (e.g., comparing white blood cells to tiny security guards), and a warm, reassuring tone. Avoid all medical jargon completely.";
     case "clinical":
-      return "Use clinical terminology appropriate for a medical student learning to interpret lab results.";
+      return "Use appropriate clinical terminology for a medical student or healthcare professional. Include relevant pathophysiology context where useful, note which findings may warrant further workup, and use standard medical abbreviations (e.g., WBC, Hgb, eGFR) with brief explanations.";
     default:
-      return "Use plain language suitable for a general adult audience with no medical background.";
+      return "Use plain, friendly language for a general adult audience with no medical background. Explain what each test measures and what the result means practically in everyday life.";
   }
 }
 
-function buildPrompt(labText: string, mode: ExplanationMode): string {
+// JSON Schema for OpenAI structured outputs (strict mode).
+// All fields required, additionalProperties: false, nullable via anyOf.
+const LAB_REPORT_JSON_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    summary: {
+      type: "string",
+      description: "2-3 sentence plain-language overview of the overall report",
+    },
+    disclaimer: { type: "string" },
+    follow_up_questions: {
+      type: "array",
+      items: { type: "string" },
+      description: "2-3 specific questions the patient could ask their doctor at their next appointment",
+    },
+    tests: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          test_name: { type: "string" },
+          reported_value: { type: "string" },
+          reference_range: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+          },
+          is_likely_normal: {
+            type: "string",
+            enum: ["yes", "no", "unknown"],
+          },
+          confidence: {
+            type: "string",
+            enum: ["high", "medium", "low"],
+            description:
+              "high: clear comparison with reference range possible; medium: value is typical/atypical but range is missing; low: significant ambiguity",
+          },
+          simple_explanation: { type: "string" },
+          recommended_next_step: { type: "string" },
+        },
+        required: [
+          "test_name",
+          "reported_value",
+          "reference_range",
+          "is_likely_normal",
+          "confidence",
+          "simple_explanation",
+          "recommended_next_step",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["summary", "disclaimer", "follow_up_questions", "tests"],
+  additionalProperties: false,
+};
+
+function buildUserMessage(labText: string, mode: ExplanationMode): string {
   return `${toneGuide(mode)}
 
-Analyze the laboratory report below and return a JSON object with this exact structure:
-{
-  "summary": "2-3 sentence plain-language overview of the whole report",
-  "disclaimer": "This explanation is for educational purposes only and is not a substitute for professional medical advice. Always consult your doctor or a qualified healthcare provider.",
-  "tests": [
-    {
-      "test_name": "name of the test",
-      "reported_value": "the value exactly as shown in the report",
-      "reference_range": "the normal range if present, otherwise null",
-      "is_likely_normal": "yes | no | unknown",
-      "simple_explanation": "1-2 sentences explaining what this test measures and what the value means",
-      "recommended_next_step": "short practical guidance, e.g. 'Discuss with your doctor' or 'Within normal range, no action needed'"
-    }
-  ]
-}
+Analyze the laboratory report below. For each test result:
+- Identify what the test measures and whether the value appears normal, abnormal, or uncertain
+- Set confidence to "high" if you can clearly compare the value to a reference range, "medium" if the range is missing but the value is recognizably typical or atypical, "low" if there is significant ambiguity
+- The follow_up_questions should be actionable and specific to this patient's results
 
 Lab report:
 """
@@ -47,31 +90,38 @@ ${labText}
 """`.trim();
 }
 
-export async function explainLabReport(
+export async function* explainLabReportStream(
   rawText: string,
-  mode: ExplanationMode = "plain"
-): Promise<LabReport> {
-  const text = rawText.length > MAX_INPUT_CHARS
-    ? rawText.slice(0, MAX_INPUT_CHARS)
-    : rawText;
+  mode: ExplanationMode = "plain",
+  signal?: AbortSignal
+): AsyncGenerator<string> {
+  const text =
+    rawText.length > MAX_INPUT_CHARS ? rawText.slice(0, MAX_INPUT_CHARS) : rawText;
 
-  const completion = await getClient().chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildPrompt(text, mode) },
-    ],
-    max_tokens: 2048,
-    temperature: 0.3,
-    response_format: { type: "json_object" },
-  });
+  const stream = await getClient().chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildUserMessage(text, mode) },
+      ],
+      max_tokens: 2048,
+      temperature: 0.3,
+      stream: true,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "lab_report_explanation",
+          strict: true,
+          schema: LAB_REPORT_JSON_SCHEMA,
+        },
+      },
+    },
+    { signal }
+  );
 
-  const content = completion.choices[0]?.message?.content ?? "{}";
-
-  const parsed = LabReportSchema.safeParse(JSON.parse(content));
-  if (!parsed.success) {
-    throw new Error("AI response did not match expected schema.");
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content ?? "";
+    if (delta) yield delta;
   }
-
-  return parsed.data;
 }

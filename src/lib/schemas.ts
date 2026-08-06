@@ -20,6 +20,7 @@ export const LabTestSchema = z.object({
   reported_value: z.string(),
   reference_range: z.string().nullable().optional().transform(v => v ?? null),
   is_likely_normal: z.enum(["yes", "no", "unknown"]),
+  confidence: z.enum(["high", "medium", "low"]),
   simple_explanation: z.string(),
   recommended_next_step: z.string(),
 });
@@ -27,7 +28,6 @@ export const LabTestSchema = z.object({
 export const LabReportSchema = z.object({
   summary: z.string(),
   disclaimer: z.string(),
+  follow_up_questions: z.array(z.string()).default([]),
   tests: z.array(LabTestSchema),
 });
-
-export type LabReportSchema = z.infer<typeof LabReportSchema>;
