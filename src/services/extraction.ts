@@ -1,13 +1,6 @@
+import { extractText } from "unpdf";
+
 const MIN_TEXT_LENGTH = 20;
-
-interface PDFTextResult {
-  text: string;
-  total: number;
-}
-
-interface PDFParseConstructor {
-  new (opts: Record<string, unknown>): { getText(): Promise<PDFTextResult> };
-}
 
 export class ExtractionError extends Error {
   constructor(
@@ -24,14 +17,10 @@ export class ExtractionError extends Error {
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // pdf-parse v2 exports a class — must use require to avoid ESM/CJS issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { PDFParse } = require("pdf-parse") as { PDFParse: PDFParseConstructor };
-
   let text: string;
   try {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
+    // unpdf wraps pdfjs-dist with the worker disabled — safe in serverless (Node 18+)
+    const result = await extractText(new Uint8Array(buffer), { mergePages: true });
     text = result.text?.trim() ?? "";
   } catch {
     throw new ExtractionError(
