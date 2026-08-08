@@ -19,7 +19,7 @@ interface Props {
 function StatusBadge({ status }: { status: NormalStatus }) {
   if (status === "yes") {
     return (
-      <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
         <CheckCircleIcon className="w-3.5 h-3.5" aria-hidden="true" />
         Normal
       </span>
@@ -27,16 +27,16 @@ function StatusBadge({ status }: { status: NormalStatus }) {
   }
   if (status === "no") {
     return (
-      <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
         <ExclamationTriangleIcon className="w-3.5 h-3.5" aria-hidden="true" />
-        Abnormal
+        Needs attention
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
       <QuestionMarkCircleIcon className="w-3.5 h-3.5" aria-hidden="true" />
-      Unknown
+      Uncertain
     </span>
   );
 }
@@ -66,10 +66,10 @@ function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
 function TestCard({ test, index }: { test: LabTest; index: number }) {
   const leftBorder =
     test.is_likely_normal === "no"
-      ? "border-l-red-400 dark:border-l-red-600"
+      ? "border-l-amber-400 dark:border-l-amber-500"
       : test.is_likely_normal === "yes"
-      ? "border-l-green-400 dark:border-l-green-600"
-      : "border-l-yellow-400 dark:border-l-yellow-600";
+      ? "border-l-teal-400 dark:border-l-teal-500"
+      : "border-l-slate-300 dark:border-l-slate-600";
 
   return (
     <motion.div
@@ -109,7 +109,9 @@ function TestCard({ test, index }: { test: LabTest; index: number }) {
 
 export function ReportOutput({ state, onReset }: Props) {
   const { data } = state;
-  const abnormalCount = data.tests.filter(t => t.is_likely_normal === "no").length;
+  const normalCount = data.tests.filter(t => t.is_likely_normal === "yes").length;
+  const attentionCount = data.tests.filter(t => t.is_likely_normal === "no").length;
+  const uncertainCount = data.tests.filter(t => t.is_likely_normal === "unknown").length;
 
   return (
     <div className="space-y-6" aria-live="polite" aria-label="Lab report explanation">
@@ -120,12 +122,7 @@ export function ReportOutput({ state, onReset }: Props) {
             Your results explained
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {data.tests.length} test{data.tests.length !== 1 ? "s" : ""} found
-            {abnormalCount > 0 && (
-              <span className="text-red-500 dark:text-red-400 ml-1">
-                · {abnormalCount} flagged
-              </span>
-            )}
+            {data.tests.length} test{data.tests.length !== 1 ? "s" : ""} analyzed
           </p>
         </div>
         <button
@@ -137,13 +134,51 @@ export function ReportOutput({ state, onReset }: Props) {
         </button>
       </div>
 
+      {/* Health at a glance */}
+      {data.tests.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap gap-3"
+        >
+          {normalCount > 0 && (
+            <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl px-4 py-2.5">
+              <CheckCircleIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              <div>
+                <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{normalCount}</p>
+                <p className="text-xs text-teal-600 dark:text-teal-500">Normal</p>
+              </div>
+            </div>
+          )}
+          {attentionCount > 0 && (
+            <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2.5">
+              <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{attentionCount}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-500">Needs attention</p>
+              </div>
+            </div>
+          )}
+          {uncertainCount > 0 && (
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5">
+              <QuestionMarkCircleIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+              <div>
+                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{uncertainCount}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Uncertain</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* Summary */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-xl border border-sky-100 dark:border-sky-900"
+        transition={{ delay: 0.1 }}
+        className="bg-teal-50 dark:bg-teal-900/20 p-4 rounded-xl border border-teal-100 dark:border-teal-900"
       >
-        <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wide mb-1.5">
+        <p className="text-xs font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-1.5">
           Summary
         </p>
         <p className="text-gray-800 dark:text-gray-200 text-sm leading-relaxed">

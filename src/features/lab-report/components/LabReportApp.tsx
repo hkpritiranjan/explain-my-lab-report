@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { SunIcon, MoonIcon } from "@heroicons/react/24/outline";
 import { useLabReport } from "@/hooks/useLabReport";
@@ -10,9 +10,16 @@ import { SkeletonCard } from "./SkeletonCard";
 import type { ExplanationMode } from "@/types/lab-report";
 
 const MODES: { value: ExplanationMode; label: string; hint: string }[] = [
-  { value: "plain", label: "Plain English", hint: "For everyone" },
-  { value: "eli5", label: "ELI 12", hint: "No jargon at all" },
-  { value: "clinical", label: "Clinical", hint: "Med student level" },
+  { value: "plain", label: "Simple", hint: "Plain language for everyone" },
+  { value: "eli5", label: "Easy read", hint: "No medical jargon at all" },
+  { value: "clinical", label: "Detailed", hint: "Technical, med-student level" },
+];
+
+const ANALYSIS_MESSAGES = [
+  "Reading your lab values…",
+  "Checking normal ranges…",
+  "Writing plain-language explanations…",
+  "Almost done…",
 ];
 
 const stepVariants: Variants = {
@@ -69,6 +76,8 @@ export function LabReportApp() {
   const { state, explain, reset, cancel, isBusy } = useLabReport();
   const [mode, setMode] = useState<ExplanationMode>("plain");
   const [isDark, setIsDark] = useState(false);
+  const [analysisMsg, setAnalysisMsg] = useState(ANALYSIS_MESSAGES[0]);
+  const analysisMsgRef = useRef(0);
 
   // Sync from the anti-FOUC script that runs before hydration
   useEffect(() => {
@@ -81,6 +90,21 @@ export function LabReportApp() {
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
   }, [isDark]);
+
+  // Rotate analysis messages while busy
+  useEffect(() => {
+    if (state.status !== "loading" && state.status !== "streaming") return;
+    analysisMsgRef.current = 0;
+    setAnalysisMsg(ANALYSIS_MESSAGES[0]);
+    const id = setInterval(() => {
+      analysisMsgRef.current = Math.min(
+        analysisMsgRef.current + 1,
+        ANALYSIS_MESSAGES.length - 1
+      );
+      setAnalysisMsg(ANALYSIS_MESSAGES[analysisMsgRef.current]);
+    }, 2200);
+    return () => clearInterval(id);
+  }, [state.status]);
 
   const step =
     state.status === "loading" || state.status === "streaming"
@@ -101,7 +125,7 @@ export function LabReportApp() {
               Lab Report Explainer
             </h1>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              AI-powered plain-language analysis
+              Your results in plain language · Private &amp; secure
             </p>
           </div>
           <DarkModeToggle isDark={isDark} onToggle={toggleDark} />
@@ -126,8 +150,24 @@ export function LabReportApp() {
                     Understand your lab results
                   </h2>
                   <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
-                    Upload a PDF, take a photo, or paste the text — we&apos;ll explain every value in plain language.
+                    Upload your report and we&apos;ll explain every value in plain language — no medical training needed.
                   </p>
+                </div>
+
+                {/* How it works */}
+                <div className="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
+                  {[
+                    { step: "1", text: "Upload your report" },
+                    { step: "2", text: "AI reads the values" },
+                    { step: "3", text: "Get plain-language results" },
+                  ].map(({ step: s, text }) => (
+                    <div key={s} className="flex items-center gap-1.5">
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 flex items-center justify-center font-semibold text-[10px]">
+                        {s}
+                      </span>
+                      <span>{text}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {state.status === "error" && (
@@ -137,7 +177,7 @@ export function LabReportApp() {
                     role="alert"
                     className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl p-4 text-sm"
                   >
-                    <strong>Error: </strong>{state.message}
+                    <strong>Something went wrong: </strong>{state.message}
                   </motion.div>
                 )}
 
@@ -162,18 +202,18 @@ export function LabReportApp() {
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
                       Analyzing your report
                     </h2>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Using{" "}
-                      <span className="font-medium text-sky-600 dark:text-sky-400">
-                        {modeLabel}
-                      </span>{" "}
-                      mode
-                      {state.status === "streaming" && (
-                        <span className="ml-1 text-gray-400 dark:text-gray-600">
-                          · {state.bytesReceived} chars
-                        </span>
-                      )}
-                    </p>
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={analysisMsg}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.25 }}
+                        className="mt-1 text-sm text-teal-600 dark:text-teal-400"
+                      >
+                        {analysisMsg}
+                      </motion.p>
+                    </AnimatePresence>
                   </div>
                   <button
                     onClick={cancel}
@@ -186,7 +226,7 @@ export function LabReportApp() {
                 {/* Progress bar */}
                 <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1 overflow-hidden">
                   <motion.div
-                    className="bg-sky-500 h-1 rounded-full"
+                    className="bg-teal-500 h-1 rounded-full"
                     initial={{ width: "5%" }}
                     animate={{
                       width:

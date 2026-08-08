@@ -23,6 +23,21 @@ type FileState =
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+const EXAMPLE_TEXT = `COMPLETE BLOOD COUNT (CBC)
+Patient: Jane Doe  DOB: 01/15/1980  Date: 08/08/2026
+
+WBC (White Blood Cells): 11.2 H   Reference: 4.5–10.5 K/uL
+RBC (Red Blood Cells): 4.8        Reference: 4.0–5.5 M/uL
+Hemoglobin: 13.9                  Reference: 12.0–16.0 g/dL
+Hematocrit: 41.2                  Reference: 36.0–46.0 %
+Platelets: 245                    Reference: 150–400 K/uL
+
+BASIC METABOLIC PANEL
+Glucose: 102 H                    Reference: 70–99 mg/dL
+Creatinine: 0.9                   Reference: 0.6–1.2 mg/dL
+Sodium: 139                       Reference: 136–145 mEq/L
+Potassium: 4.1                    Reference: 3.5–5.1 mEq/L`;
+
 export function FileUploader({ onExplain, mode, busy }: Props) {
   const [manual, setManual] = useState("");
   const [fileState, setFileState] = useState<FileState>({ status: "idle" });
@@ -120,7 +135,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
           onClick={() => setTab("file")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
             tab === "file"
-              ? "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400"
+              ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           }`}
         >
@@ -131,7 +146,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
           onClick={() => setTab("text")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
             tab === "text"
-              ? "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400"
+              ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           }`}
         >
@@ -174,8 +189,8 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                 relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer
                 transition-all duration-200 select-none
                 ${isDragging
-                  ? "border-sky-500 bg-sky-50 dark:bg-sky-950/30"
-                  : "border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-600 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
+                  : "border-gray-200 dark:border-gray-700 hover:border-teal-400 dark:hover:border-teal-600 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 }
                 ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}
               `}
@@ -183,7 +198,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
               <div className="flex flex-col items-center gap-3 pointer-events-none">
                 <div className={`p-3 rounded-xl transition-colors ${
                   isDragging
-                    ? "bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400"
+                    ? "bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                 }`}>
                   {isDragging ? (
@@ -204,7 +219,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                   </p>
                 </div>
                 {!isDragging && (
-                  <span className="text-xs font-medium text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-1">
+                  <span className="text-xs font-medium text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 rounded-lg px-3 py-1">
                     or click to browse
                   </span>
                 )}
@@ -220,7 +235,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                   exit={{ opacity: 0, height: 0 }}
                   role="status"
                   aria-live="polite"
-                  className="text-sm text-sky-600 dark:text-sky-400 mt-3 animate-pulse"
+                  className="text-sm text-teal-600 dark:text-teal-400 mt-3 animate-pulse"
                 >
                   {fileState.message}
                 </motion.p>
@@ -237,6 +252,21 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                 </motion.p>
               )}
             </AnimatePresence>
+
+            {/* Try an example */}
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs text-gray-400 dark:text-gray-600">
+                🔒 Your file is never stored — used only for this analysis.
+              </p>
+              <button
+                type="button"
+                disabled={isDisabled}
+                onClick={() => onExplain(EXAMPLE_TEXT, mode)}
+                className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium underline underline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Try an example
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -262,7 +292,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                   text-gray-900 dark:text-gray-100
                   placeholder-gray-400 dark:placeholder-gray-600
                   p-4 text-sm leading-relaxed resize-none outline-none
-                  focus:border-sky-500 dark:focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20
+                  focus:border-teal-500 dark:focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20
                   disabled:opacity-50 disabled:cursor-not-allowed
                   transition-colors
                 "
@@ -275,7 +305,7 @@ export function FileUploader({ onExplain, mode, busy }: Props) {
                   type="submit"
                   disabled={isDisabled || manual.trim().length < 10}
                   className="
-                    bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400
+                    bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400
                     disabled:opacity-50 disabled:cursor-not-allowed
                     text-white font-medium py-2 px-5 rounded-xl text-sm
                     transition-colors
